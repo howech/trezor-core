@@ -194,6 +194,22 @@ def _check_rsig_data(state: State, rsig_data: MoneroTransactionRsigData):
     if state.rsig_type == RsigType.Bulletproof and state.output_count > 2:
         state.rsig_offload = True
 
+    _check_grouping(state)
+
+
+def _check_grouping(state: State):
+    if state.rsig_grouping is None or len(state.rsig_grouping) == 0:
+        return
+
+    acc = 0
+    for x in state.rsig_grouping:
+        if x is None or x <= 0:
+            raise ValueError("Invalid grouping batch")
+        acc += x
+
+    if acc != state.output_count:
+        raise ValueError("Invalid grouping")
+
 
 def _check_change(state: State, outputs: list):
     """
