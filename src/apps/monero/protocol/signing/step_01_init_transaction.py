@@ -198,9 +198,6 @@ def _check_rsig_data(state: State, rsig_data: MoneroTransactionRsigData):
 
 
 def _check_grouping(state: State):
-    if state.rsig_grouping is None or len(state.rsig_grouping) == 0:
-        return
-
     acc = 0
     for x in state.rsig_grouping:
         if x is None or x <= 0:
