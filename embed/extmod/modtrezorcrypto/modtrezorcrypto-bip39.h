@@ -125,6 +125,21 @@ STATIC mp_obj_t mod_trezorcrypto_bip39_seed(mp_obj_t mnemonic, mp_obj_t passphra
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_2(mod_trezorcrypto_bip39_seed_obj, mod_trezorcrypto_bip39_seed);
 
+/// def entropy(mnemonic: str) -> bytes:
+///     '''
+///     Convert mnemonic to entropy bytes
+///     '''
+STATIC mp_obj_t mod_trezorcrypto_bip39_entropy(mp_obj_t mnemonic) {
+    mp_buffer_info_t mnemo;
+    mp_get_buffer_raise(mnemonic, &mnemo, MP_BUFFER_READ);
+    uint8_t entropy[32];
+    const char *pmnemonic = mnemo.len > 0 ? mnemo.buf : "";
+    uint16_t bits = mnemonic_to_entropy(pmnemonic, entropy); 
+    return mp_obj_new_bytes(entropy, (bits)/8);
+}
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_trezorcrypto_bip39_entropy_obj, mod_trezorcrypto_bip39_entropy);
+
+
 STATIC const mp_rom_map_elem_t mod_trezorcrypto_bip39_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR___name__), MP_ROM_QSTR(MP_QSTR_bip39) },
     { MP_ROM_QSTR(MP_QSTR_find_word), MP_ROM_PTR(&mod_trezorcrypto_bip39_find_word_obj) },
@@ -133,6 +148,7 @@ STATIC const mp_rom_map_elem_t mod_trezorcrypto_bip39_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR_from_data), MP_ROM_PTR(&mod_trezorcrypto_bip39_from_data_obj) },
     { MP_ROM_QSTR(MP_QSTR_check), MP_ROM_PTR(&mod_trezorcrypto_bip39_check_obj) },
     { MP_ROM_QSTR(MP_QSTR_seed), MP_ROM_PTR(&mod_trezorcrypto_bip39_seed_obj) },
+    { MP_ROM_QSTR(MP_QSTR_entropy), MP_ROM_PTR(&mod_trezorcrypto_bip39_entropy_obj) },
 };
 STATIC MP_DEFINE_CONST_DICT(mod_trezorcrypto_bip39_globals, mod_trezorcrypto_bip39_globals_table);
 

@@ -1,5 +1,6 @@
 from trezor import config, ui, wire
 from trezor.crypto import bip39
+
 from trezor.messages.ButtonRequest import ButtonRequest
 from trezor.messages.ButtonRequestType import MnemonicInput, MnemonicWordCount
 from trezor.messages.MessageType import ButtonAck
@@ -8,11 +9,12 @@ from trezor.pin import pin_to_int
 from trezor.ui.mnemonic import MnemonicKeyboard
 from trezor.ui.text import Text
 from trezor.ui.word_select import WordSelector
+from trezor.ui.share_select import ShareSelector
 from trezor.utils import format_ordinal
 
 from apps.common import storage
 from apps.management.change_pin import request_pin_confirm
-
+from apps.common.ssss import Collector
 
 async def recovery_device(ctx, msg):
     """
@@ -28,15 +30,28 @@ async def recovery_device(ctx, msg):
         raise wire.UnexpectedMessage("Already initialized")
 
     # ask for the number of words
+    sharecount = await request_sharecount(ctx)
+
+    # ask for the number of words
     wordcount = await request_wordcount(ctx)
 
-    # ask for mnemonic words one by one
-    mnemonic = await request_mnemonic(ctx, wordcount)
+    mnemonic = None
+    if sharecount == 1:
+        # ask for mnemonic words one by one
+        mnemonic = await request_mnemonic(ctx, wordcount) 
 
-    # check mnemonic validity
-    if msg.enforce_wordlist or msg.dry_run:
-        if not bip39.check(mnemonic):
-            raise wire.ProcessError("Mnemonic is not valid")
+        # check mnemonic validity
+        if msg.enforce_wordlist or msg.dry_run:
+            if not bip39.check(mnemonic):
+                raise wire.ProcessError("Mnemonic is not valid")
+    else:
+        collector = Collector()
+        while collector.sharesRemaining() > 0:
+            share_mnemonic = await request_mnemonic(ctx, wordcount+3)
+            share_entropy = bip39.entropy(share_mnemonic)
+            collector.collectShare(bip39.entropy(share_mnemonic))
+        entropy = collector.recoverSecret()
+        mnemonic = bip39.from_data(entropy)
 
     # ask for pin repeatedly
     if msg.pin_protection:
@@ -59,6 +74,15 @@ async def recovery_device(ctx, msg):
                 "The seed is valid but does not match the one in the device"
             )
 
+@ui.layout
+async def request_sharecount(ctx):
+    await ctx.call(ButtonRequest(code=MnemonicWordCount), ButtonAck)
+
+    text = Text("Device recovery", ui.ICON_RECOVERY)
+    text.normal("Number of sharess?")
+    count = await ctx.wait(ShareSelector(text))
+
+    return count
 
 @ui.layout
 async def request_wordcount(ctx):
