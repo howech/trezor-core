@@ -49,7 +49,7 @@ async def recovery_device(ctx, msg):
         while collector.sharesRemaining() > 0:
             share_mnemonic = await request_mnemonic(ctx, wordcount+3)
             share_entropy = bip39.entropy(share_mnemonic)
-            collector.collectShare(bip39.entropy(share_mnemonic))
+            collector.collectShare(share_entropy)
         entropy = collector.recoverSecret()
         mnemonic = bip39.from_data(entropy)
 
@@ -79,7 +79,7 @@ async def request_sharecount(ctx):
     await ctx.call(ButtonRequest(code=MnemonicWordCount), ButtonAck)
 
     text = Text("Device recovery", ui.ICON_RECOVERY)
-    text.normal("Number of sharess?")
+    text.normal("Number of shares?")
     count = await ctx.wait(ShareSelector(text))
 
     return count

@@ -47,7 +47,9 @@ async def backup_device(ctx, msg):
         return Success(message="Seed successfully backed up")
 
     else:
+        mnemonic = storage.get_mnemonic()
         entropy = bip39.entropy(storage.get_mnemonic())
+
         dealer = Dealer(entropy, sharecount)
         shares = 0
         while True:
@@ -68,7 +70,7 @@ async def request_sharecount(ctx):
     await ctx.call(ButtonRequest(code=Other), ButtonAck)
 
     text = Text("Backup device", ui.ICON_RECOVERY)
-    text.normal("Parts required for restore?")
+    text.normal("Number of shares", "needed to restore?")
     count = await ctx.wait(ShareSelector(text))
 
     return count
