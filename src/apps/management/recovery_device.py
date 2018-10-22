@@ -2,17 +2,18 @@ from trezor import config, ui, wire
 from trezor.crypto import bip39
 
 from trezor.messages.ButtonRequest import ButtonRequest
-from trezor.messages.ButtonRequestType import MnemonicInput, MnemonicWordCount
+from trezor.messages.ButtonRequestType import MnemonicInput, MnemonicWordCount, Other
 from trezor.messages.MessageType import ButtonAck
 from trezor.messages.Success import Success
 from trezor.pin import pin_to_int
 from trezor.ui.mnemonic import MnemonicKeyboard
 from trezor.ui.text import Text
 from trezor.ui.word_select import WordSelector
-from trezor.ui.share_select import ShareSelector
+from trezor.ui.share_word_select import ShareWordSelector
 from trezor.utils import format_ordinal
 
 from apps.common import storage
+from apps.common.confirm import confirm, require_confirm
 from apps.management.change_pin import request_pin_confirm
 from apps.common.ssss import Collector
 
@@ -30,14 +31,15 @@ async def recovery_device(ctx, msg):
         raise wire.UnexpectedMessage("Already initialized")
 
     # ask for the number of words
-    sharecount = await request_sharecount(ctx)
+    recover_shared = await recover_from_shares(ctx)
 
     # ask for the number of words
-    wordcount = await request_wordcount(ctx)
-
+    wordcount = None
+    
     mnemonic = None
-    if sharecount == 1:
+    if not recover_shared:
         # ask for mnemonic words one by one
+        wordcount = await request_wordcount(ctx)
         mnemonic = await request_mnemonic(ctx, wordcount) 
 
         # check mnemonic validity
@@ -45,11 +47,18 @@ async def recovery_device(ctx, msg):
             if not bip39.check(mnemonic):
                 raise wire.ProcessError("Mnemonic is not valid")
     else:
+        wordcount = await request_share_wordcount(ctx)
+
         collector = Collector()
         while collector.sharesRemaining() > 0:
-            share_mnemonic = await request_mnemonic(ctx, wordcount+3)
+
+            share_mnemonic = await request_mnemonic(ctx, wordcount)
             share_entropy = bip39.entropy(share_mnemonic)
             collector.collectShare(share_entropy)
+            remaining = collector.sharesRemaining()
+            if remaining > 0:
+                await require_confirm_shares_remaining(ctx, remaining)
+
         entropy = collector.recoverSecret()
         mnemonic = bip39.from_data(entropy)
 
@@ -74,15 +83,12 @@ async def recovery_device(ctx, msg):
                 "The seed is valid but does not match the one in the device"
             )
 
-@ui.layout
-async def request_sharecount(ctx):
-    await ctx.call(ButtonRequest(code=MnemonicWordCount), ButtonAck)
 
+async def recover_from_shares(ctx):
     text = Text("Device recovery", ui.ICON_RECOVERY)
-    text.normal("Number of shares?")
-    count = await ctx.wait(ShareSelector(text))
+    text.normal("Recover from", "shared secret?")
+    return await confirm(ctx, text, Other)
 
-    return count
 
 @ui.layout
 async def request_wordcount(ctx):
@@ -94,6 +100,15 @@ async def request_wordcount(ctx):
 
     return count
 
+@ui.layout
+async def request_share_wordcount(ctx):
+    await ctx.call(ButtonRequest(code=MnemonicWordCount), ButtonAck)
+
+    text = Text("Device recovery", ui.ICON_RECOVERY)
+    text.normal("Number of words?")
+    count = await ctx.wait(ShareWordSelector(text))
+
+    return count
 
 @ui.layout
 async def request_mnemonic(ctx, count: int) -> str:
@@ -107,3 +122,8 @@ async def request_mnemonic(ctx, count: int) -> str:
         words.append(word)
 
     return " ".join(words)
+
+async def require_confirm_shares_remaining(ctx, remaining):
+    text = Text("Device recovery", ui.ICON_RECOVERY)
+    text.normal("{:d} shares to go".format(remaining))
+    await confirm(ctx, text, Other, cancel=None)

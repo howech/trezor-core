@@ -65,6 +65,7 @@ async def backup_device(ctx, msg):
         storage.set_unfinished_backup(False)
         return Success(message="Seed successfully shared")
 
+
 @ui.layout
 async def request_sharecount(ctx):
     await ctx.call(ButtonRequest(code=Other), ButtonAck)
